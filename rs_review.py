@@ -22,7 +22,8 @@ df['H1_BC3'] = df['H1 Breadcrumb Structure'].apply(lambda x: x.split("->")[2] if
 df['H1_BC4'] = df['H1 Breadcrumb Structure'].apply(lambda x: x.split("->")[3] if len(x.split("->")) > 3 else '')
 df['H1_BC5'] = df['H1 Breadcrumb Structure'].apply(lambda x: x.split("->")[4] if len(x.split("->")) > 4 else '')
 df['Edited Related H1'] = df['Related H1']
-df.drop(columns=['Unnamed: 0'], inplace=True)
+if 'Unnamed: 0' in df.columns:
+    df.drop(columns=['Unnamed: 0'], inplace=True)
 
 # Create a list of all the columns
 cols = df.columns.tolist()
