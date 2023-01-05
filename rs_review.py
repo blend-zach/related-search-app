@@ -1,10 +1,10 @@
 import streamlit as st
 import pandas as pd
+from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, DataReturnMode
 
 # import numpy as np
 # import os
 # from sklearn import metrics
-# from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, DataReturnMode
 # import plotly.express as px
 # import json
 
@@ -22,22 +22,27 @@ df['H1_BC3'] = df['H1 Breadcrumb Structure'].apply(lambda x: x.split("->")[2] if
 df['H1_BC4'] = df['H1 Breadcrumb Structure'].apply(lambda x: x.split("->")[3] if len(x.split("->")) > 3 else '')
 df['H1_BC5'] = df['H1 Breadcrumb Structure'].apply(lambda x: x.split("->")[4] if len(x.split("->")) > 4 else '')
 df['Edited Related H1'] = df['Related H1']
+df.drop(columns=['Unnamed: 0'], inplace=True)
 
 # Create a list of all the columns
 cols = df.columns.tolist()
-
 
 # Collects user input features into dataframe
 def user_input_features():
     # keyword filter
     keyword = st.sidebar.text_input(label="Keyword", placeholder="Search by Keywords...")
+    if keyword:
+        kw_df = df[df['H1'].apply(lambda x: keyword.lower() in x.lower())]
+    else:
+        kw_df = df
+    print(keyword)
     # category filter
     category = []
     breadcrumb_1 = st.sidebar.selectbox(label="Breadcrumb 1",
-                                        options=["Choose ..."] + sorted(df['H1_BC1'].unique().tolist()))
+                                        options=["Choose ..."] + sorted(kw_df['H1_BC1'].unique().tolist()))
     if breadcrumb_1 and breadcrumb_1 != "Choose ...":
         category.append(breadcrumb_1)
-        df_breadcrumb_1 = df[df['H1_BC1'] == breadcrumb_1]
+        df_breadcrumb_1 = kw_df[kw_df['H1_BC1'] == breadcrumb_1]
         bc2_list = df_breadcrumb_1['H1_BC2'].unique().tolist()
         if '' in bc2_list:
             bc2_list.remove('')
@@ -93,7 +98,7 @@ def user_input_features():
         else:
             data = df_breadcrumb_1
     else:
-        data = df
+        data = kw_df
     h1_selection = st.sidebar.selectbox(label="Selected H1", options=["Choose..."] + data['H1'].unique().tolist())
     return keyword, category, h1_selection, data
 
@@ -104,7 +109,6 @@ breadcrumb_filter = filter_bar[1]
 h1_selected = filter_bar[2]
 filtered_data = filter_bar[3]
 
-
 def make_grid(cols, rows):
     grid = [0] * cols
     for i in range(cols):
@@ -112,11 +116,11 @@ def make_grid(cols, rows):
             grid[i] = st.columns(rows)
     return grid
 
-
-# Content of the page
-if h1_selected != 'Choose...':
-    st.subheader(h1_selected)
-    # st.write(filtered_data[filtered_data['H1'] == h1_selected]['Related H1'].values[0])
+aggrid = 0
+# Content of the page (NON-AGGRID)
+if h1_selected != 'Choose...' and aggrid == 0:
+    st.subheader(f"Selected H1: {h1_selected}")
+    st.write(filtered_data[filtered_data['H1'] == h1_selected]['H1 URL'].values[0])
     for i, row in filtered_data[filtered_data['H1'] == h1_selected].reset_index().iterrows():
         label = f"{i + 1} - {row['Related H1']}"
         with st.expander(label=label, expanded=False):
@@ -136,4 +140,26 @@ if h1_selected != 'Choose...':
                 tmp_idx = df[(df['H1'] == h1_selected) & (df['Related H1'] == row['Related H1'])].index[0]
                 df.loc[tmp_idx, 'Edited Related H1'] = edit_anchor_text
 
+# Content of the page (AGGRID)
+if h1_selected != 'Choose...' and aggrid != 0:
+    st.subheader(f"Selected H1: {h1_selected}")
+    df_aggrid = filtered_data[filtered_data['H1'] == h1_selected].reset_index()
+    # show the dataframe using aggrid
+    gb = GridOptionsBuilder.from_dataframe(df_aggrid)
+    gb.configure_pagination(paginationPageSize=12)
+    gb.configure_side_bar()
+    gb.configure_selection("multiple", use_checkbox=True, groupSelectsChildren="Group checkbox select children")
+    gb.configure_column("anchor_text", editable=True)
+    gridOptions = gb.build()
+    grid_response = AgGrid(
+        df_aggrid,
+        gridOptions=gridOptions,
+        data_return_mode='AS_INPUT',
+        update_mode='MODEL_CHANGED',
+        fit_columns_on_grid_load=False,
+        enable_enterprise_modules=True,
+        # rowDragEntireRow=True,
+        height=350,
+        width='100%',
+    )
 st.sidebar.download_button('Download Current Dataframe', df.to_csv(), 'related-search-full-run.csv')
